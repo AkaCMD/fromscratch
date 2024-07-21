@@ -19,6 +19,11 @@ int entry(int argc, char **argv) {
 	while(!window.should_close) {
 		reset_temporary_storage();
 
+		draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
+
+		float zoom = 5.3;
+		draw_frame.view = m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1));
+
 		float64 now = os_get_current_time_in_seconds();
 		float64 delta_t = now - last_time;
 		last_time = now;
@@ -44,11 +49,13 @@ int entry(int argc, char **argv) {
 		}
 		input_axis = v2_normalize(input_axis);
 
-		player_pos = v2_add(player_pos, v2_mulf(input_axis, 5.0 * delta_t));
+		player_pos = v2_add(player_pos, v2_mulf(input_axis, 100.0 * delta_t));
 
+		Vector2 size = v2(10.0, 13.0);
 		Matrix4 x_form = m4_scalar(1.0);
 		x_form = m4_translate(x_form, v3(player_pos.x, player_pos.y, 0));
-		draw_image_xform(player, x_form, v2(.5f, .5f), COLOR_WHITE);
+		x_form = m4_translate(x_form, v3(size.x * -0.5, 0.0, 0.0));
+		draw_image_xform(player, x_form, size, COLOR_WHITE);
 
 		gfx_update();
 		seconds_counter += delta_t;
