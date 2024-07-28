@@ -1,6 +1,9 @@
 const int tile_width = 10;
 const float entity_selection_radius = 18.0f;
 
+const int rock_health = 3;
+const int tree_health = 3;
+
 int world_pos_to_tile_pos(float world_pos) {
 	return world_pos / (float)tile_width;
 }
@@ -38,11 +41,14 @@ typedef enum EntityArchetype {
 	arch_rock = 1,
 	arch_tree = 2,
 	arch_player = 3,
+	
+	arch_item_rock = 4,
+	arch_item_pine_wood = 5,
+	ARCH_MAX,
 } EntityArchetype;
 
 typedef struct Sprite {
 	Gfx_Image* image;
-	Vector2 size;
 } Sprite;
 
 typedef enum SpriteID {
@@ -51,6 +57,8 @@ typedef enum SpriteID {
 	SPRITE_tree1,
 	SPRITE_tree2,
 	SPRITE_rock1,
+	SPRITE_item_rock,
+	SPRITE_item_pine_wood,
 	SPRITE_MAX,
 } SpriteID;
 Sprite sprites[SPRITE_MAX];
@@ -60,14 +68,18 @@ Sprite* get_sprite(SpriteID id) {
 	}
 	return &sprites[0];
 }
+Vector2 get_sprite_size(Sprite* sprite) {
+	return (Vector2) { sprite->image->width, sprite->image->height };
+}
+
 
 typedef struct Entity {
 	bool is_valid;
 	EntityArchetype arch;
 	Vector2 pos;
-
 	bool render_sprite;
 	SpriteID sprite_id;
+	int health;
 } Entity;
 #define MAX_ENTITY_COUNT 1024
 
@@ -107,11 +119,23 @@ void setup_player(Entity* en) {
 void setup_rock(Entity* en) {
 	en->arch = arch_rock;
 	en->sprite_id = SPRITE_rock1;
+	en->health = rock_health;
 }
 
 void setup_tree(Entity* en) {
 	en->arch = arch_tree;
 	en->sprite_id = SPRITE_tree1;
+	en->health = tree_health;
+}
+
+void setup_item_rock(Entity* en) {
+	en->arch = arch_item_rock;
+	en->sprite_id = SPRITE_item_rock;
+}
+
+void setup_item_pine_wood(Entity* en) {
+	en->arch = arch_item_pine_wood;
+	en->sprite_id = SPRITE_item_pine_wood;
 }
 
 Vector2 screen_to_world() {
@@ -148,10 +172,12 @@ int entry(int argc, char **argv) {
 	memset(world, 0, sizeof(World));
 
 	// :load-assets
-	sprites[SPRITE_player] = (Sprite){ .image=load_image_from_disk(STR("player.png"), get_heap_allocator()), .size=v2(10.0, 13.0) };
-	sprites[SPRITE_tree1] = (Sprite){ .image=load_image_from_disk(STR("tree1.png"), get_heap_allocator()), .size=v2(9.0, 20.0) };
-	sprites[SPRITE_tree2] = (Sprite){ .image=load_image_from_disk(STR("tree2.png"), get_heap_allocator()), .size=v2(18.0, 19.0) };
-	sprites[SPRITE_rock1] = (Sprite){ .image=load_image_from_disk(STR("rock1.png"), get_heap_allocator()), .size=v2(9.0, 6.0) };
+	sprites[SPRITE_player] = (Sprite){ .image=load_image_from_disk(STR("res/sprites/player.png"), get_heap_allocator())};
+	sprites[SPRITE_tree1] = (Sprite){ .image=load_image_from_disk(STR("res/sprites/tree1.png"), get_heap_allocator())};
+	sprites[SPRITE_tree2] = (Sprite){ .image=load_image_from_disk(STR("res/sprites/tree2.png"), get_heap_allocator())};
+	sprites[SPRITE_rock1] = (Sprite){ .image=load_image_from_disk(STR("res/sprites/rock1.png"), get_heap_allocator())};
+	sprites[SPRITE_item_rock] = (Sprite){ .image=load_image_from_disk(STR("res/sprites/item_rock.png"), get_heap_allocator())};
+	sprites[SPRITE_item_pine_wood] = (Sprite){ .image=load_image_from_disk(STR("res/sprites/item_pine_wood.png"), get_heap_allocator())};
 
 	Gfx_Font* font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());
@@ -257,6 +283,22 @@ int entry(int argc, char **argv) {
 			// draw_rect(v2(tile_pos_to_world_pos(mouse_tile_x) + tile_width * -0.5, tile_pos_to_world_pos(mouse_tile_y) + tile_width * -0.5), v2(tile_width, tile_width), v4(0.5, 0.5, 0.5, 0.5));
 		}
 
+		// click things
+		{
+			Entity* selected_en = world_frame.selected_entity;
+
+			if (is_key_just_pressed(MOUSE_BUTTON_LEFT)) {
+				consume_key_just_pressed(MOUSE_BUTTON_LEFT);
+
+				if (selected_en) {
+					selected_en->health -= 1;
+					if (selected_en->health <= 0) {
+						entity_destroy(selected_en);
+					}
+				}
+			}
+		}
+
 		// :render
 		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
 			Entity* en = &world->entities[i];
@@ -269,14 +311,14 @@ int entry(int argc, char **argv) {
 						Matrix4 x_form = m4_scalar(1.0);
 						x_form = m4_translate(x_form, v3(0, tile_width * -0.5, 0));
 						x_form = m4_translate(x_form, v3(en->pos.x, en->pos.y, 0));
-						x_form = m4_translate(x_form, v3(sprite->size.x * -0.5, 0.0, 0.0));
+						x_form = m4_translate(x_form, v3(sprite->image->width * -0.5, 0.0, 0.0));
 
 						Vector4 col = COLOR_WHITE;
 						if (world_frame.selected_entity == en) {
 							col = COLOR_RED;
 						}
 
-						draw_image_xform(sprite->image, x_form, sprite->size, col);
+						draw_image_xform(sprite->image, x_form, get_sprite_size(sprite), col);
 
 						// draw_text(font, sprint(temp, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
 
