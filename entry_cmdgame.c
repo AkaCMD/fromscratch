@@ -80,7 +80,9 @@ typedef struct Entity {
 	bool render_sprite;
 	SpriteID sprite_id;
 	int health;
+	bool destroyable_world_item;
 } Entity;
+// :entity
 #define MAX_ENTITY_COUNT 1024
 
 typedef struct World {
@@ -120,12 +122,14 @@ void setup_rock(Entity* en) {
 	en->arch = arch_rock;
 	en->sprite_id = SPRITE_rock1;
 	en->health = rock_health;
+	en->destroyable_world_item = true;
 }
 
 void setup_tree(Entity* en) {
 	en->arch = arch_tree;
 	en->sprite_id = SPRITE_tree1;
 	en->health = tree_health;
+	en->destroyable_world_item = true;
 }
 
 void setup_item_rock(Entity* en) {
@@ -245,7 +249,7 @@ int entry(int argc, char **argv) {
 
 			for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
 				Entity* en = &world->entities[i];
-				if (en->is_valid) {
+				if (en->is_valid && en->destroyable_world_item) {
 					Sprite* sprite = get_sprite(en->sprite_id);
 
 					int entity_tile_x = world_pos_to_tile_pos(en->pos.x);
@@ -293,6 +297,23 @@ int entry(int argc, char **argv) {
 				if (selected_en) {
 					selected_en->health -= 1;
 					if (selected_en->health <= 0) {
+						
+						switch (selected_en->arch)
+						{
+						case arch_tree: {
+							Entity* en = entity_create();
+							setup_item_pine_wood(en);
+							en->pos = selected_en->pos;
+						} break;
+						
+						case arch_rock: {
+							Entity* en = entity_create();
+							setup_item_rock(en);
+							en->pos = selected_en->pos;
+						} break;
+						default: { } break;
+						}
+
 						entity_destroy(selected_en);
 					}
 				}
