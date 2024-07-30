@@ -1,5 +1,6 @@
 const int tile_width = 10;
 const float entity_selection_radius = 18.0f;
+const float player_pickup_radius = 20.0f;
 
 const int rock_health = 3;
 const int tree_health = 3;
@@ -11,6 +12,10 @@ float sin_breath(float time, float rate) {
 
 bool almost_equals(float a, float b, float epsilon) {
 	return fabs(a-b) <= epsilon;
+}
+
+float v2_dist(Vector2 a, Vector2 b) {
+	return fabsf(v2_length(v2_sub(a, b)));
 }
 
 bool animate_f32_to_target(float* value, float target, float delta_t, float rate) {
@@ -93,8 +98,13 @@ typedef struct Entity {
 // :entity
 #define MAX_ENTITY_COUNT 1024
 
+typedef struct ItemData {
+	int amount;
+} ItemData;
+
 typedef struct World {
 	Entity entities[MAX_ENTITY_COUNT];
+	ItemData inventory_items[ARCH_MAX];
 } World;
 World* world = 0;
 
@@ -197,6 +207,13 @@ int entry(int argc, char **argv) {
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());
 	const u32 font_height = 48;
 
+	// :init
+
+	// test item adding
+	{
+		world->inventory_items[arch_item_pine_wood].amount = 5;
+	}
+
 	// :spawn-player
 	Entity* player_en = entity_create();
 	setup_player(player_en);
@@ -265,7 +282,7 @@ int entry(int argc, char **argv) {
 					int entity_tile_x = world_pos_to_tile_pos(en->pos.x);
 					int entity_tile_y = world_pos_to_tile_pos(en->pos.y);
 					
-					float dist = fabsf(v2_length(v2_sub(en->pos, mouse_pos_world)));
+					float dist = v2_dist(en->pos, mouse_pos_world);
 					if (dist < entity_selection_radius) {
 						if (!world_frame.selected_entity || (smallest_dist > dist)) {
 							world_frame.selected_entity = en;
@@ -295,6 +312,20 @@ int entry(int argc, char **argv) {
 			}
 
 			// draw_rect(v2(tile_pos_to_world_pos(mouse_tile_x) + tile_width * -0.5, tile_pos_to_world_pos(mouse_tile_y) + tile_width * -0.5), v2(tile_width, tile_width), v4(0.5, 0.5, 0.5, 0.5));
+		}
+
+		// :update entities
+		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
+			Entity* en = &world->entities[i];
+			if (en->is_valid) {
+				if (en->is_item) {
+					// TODO: add physics effect
+					if(v2_dist(en->pos, player_en->pos) < player_pickup_radius) {
+						world->inventory_items[en->arch].amount += 1;
+						entity_destroy(en);
+					}
+				}
+			}
 		}
 
 		// click things
